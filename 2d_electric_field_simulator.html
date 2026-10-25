@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Electric Field & Voltage Vector Simulator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        canvas { touch-action: none; }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans overflow-x-hidden select-none">
+
+    <!-- Header -->
+    <header class="bg-slate-900/90 border-b border-slate-800 px-6 py-3 flex items-center justify-between sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-indigo-600/30 text-indigo-400 rounded-lg border border-indigo-500/30">
+                <i class="fa-solid font-bold fa-bolt text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold bg-gradient-to-r from-indigo-400 via-sky-300 to-emerald-400 bg-clip-text text-transparent">
+                    2D Electrostatics Vector Simulator
+                </h1>
+                <p class="text-xs text-slate-400">Coulomb's Law, Field Vectors, Test Charge Probe & Equipotentials</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <button id="btnFormulaModal" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-md border border-slate-700 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-square-root-variable text-indigo-400"></i> Math Formulas
+            </button>
+            <button id="btnDbModal" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-md border border-slate-700 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-database text-emerald-400"></i> Database Storage
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 max-w-[1920px] mx-auto w-full">
+        
+        <!-- Left Sidebar: Controls & Tools -->
+        <aside class="lg:col-span-3 flex flex-col gap-4">
+            
+            <!-- Tool Selector -->
+            <div class="glass-panel p-4 rounded-xl flex flex-col gap-3">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <i class="fa-solid fa-toolbox text-indigo-400"></i> Interactive Palette
+                </h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="modeProton" class="tool-btn active p-3 rounded-lg border border-rose-500/40 bg-rose-950/40 hover:bg-rose-900/50 text-rose-200 flex flex-col items-center gap-1 transition">
+                        <i class="fa-solid fa-plus-circle text-lg text-rose-400"></i>
+                        <span class="text-xs font-medium">Add Proton (+e)</span>
+                    </button>
+                    <button id="modeElectron" class="tool-btn p-3 rounded-lg border border-sky-500/30 bg-slate-900/60 hover:bg-sky-950/40 text-sky-200 flex flex-col items-center gap-1 transition">
+                        <i class="fa-solid fa-minus-circle text-lg text-sky-400"></i>
+                        <span class="text-xs font-medium">Add Electron (-e)</span>
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="modeProbe" class="tool-btn p-3 rounded-lg border border-amber-500/30 bg-slate-900/60 hover:bg-amber-950/40 text-amber-200 flex flex-col items-center gap-1 transition">
+                        <i class="fa-solid fa-crosshairs text-lg text-amber-400"></i>
+                        <span class="text-xs font-medium">Move Test Probe</span>
+                    </button>
+                    <button id="modeSelect" class="tool-btn p-3 rounded-lg border border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-300 flex flex-col items-center gap-1 transition">
+                        <i class="fa-solid fa-hand text-lg text-slate-400"></i>
+                        <span class="text-xs font-medium">Move</span>
+                    </button>
+                </div>
+                
+                <!-- Add Charge Magnitude Input -->
+                <div class="mt-2 flex items-center justify-between text-xs text-slate-300 bg-slate-900/60 p-2 rounded-lg border border-slate-700">
+                    <span>Charge Multiplier</span>
+                    <div class="flex items-center gap-1">
+                        <input type="number" id="inChargeMag" value="1" min="1" max="10" class="bg-slate-800 border border-slate-600 rounded px-1.5 py-0.5 w-12 text-center text-white outline-none focus:border-indigo-400">
+                        <span class="text-slate-500">e</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Display Options -->
+            <div class="glass-panel p-4 rounded-xl flex flex-col gap-3">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-indigo-400"></i> Visualization Toggles
+                </h2>
+                
+                <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer p-1.5 rounded hover:bg-slate-800/50">
+                    <span class="flex items-center gap-2"><i class="fa-solid fa-border-all text-slate-400"></i> Coordinate Grid</span>
+                    <input type="checkbox" id="chkGrid" checked class="w-4 h-4 accent-indigo-500 rounded">
+                </label>
+                
+                <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer p-1.5 rounded hover:bg-slate-800/50">
+                    <span class="flex items-center gap-2"><i class="fa-solid fa-arrows-spin text-indigo-400"></i> E-Field Vector Grid</span>
+                    <input type="checkbox" id="chkFieldGrid" checked class="w-4 h-4 accent-indigo-500 rounded">
+                </label>
+
+                <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer p-1.5 rounded hover:bg-slate-800/50">
+                    <span class="flex items-center gap-2"><i class="fa-solid fa-fire text-amber-400"></i> Voltage Heatmap (Potential)</span>
+                    <input type="checkbox" id="chkVoltageMap" checked class="w-4 h-4 accent-indigo-500 rounded">
+                </label>
+
+                <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer p-1.5 rounded hover:bg-slate-800/50">
+                    <span class="flex items-center gap-2"><i class="fa-solid fa-arrow-trend-up text-emerald-400"></i> Probe Force Vector (F)</span>
+                    <input type="checkbox" id="chkProbeForce" checked class="w-4 h-4 accent-indigo-500 rounded">
+                </label>
+
+                <div class="pt-2 border-t border-slate-800 flex flex-col gap-1.5">
+                    <div class="flex justify-between text-xs text-slate-400">
+                        <span>Vector Arrow Density</span>
+                        <span id="lblGridDensity">24px</span>
+                    </div>
+                    <input type="range" id="rngGridDensity" min="16" max="48" step="4" value="24" class="w-full accent-indigo-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+
+            <!-- Presets & Actions -->
+            <div class="glass-panel p-4 rounded-xl flex flex-col gap-3">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <i class="fa-solid fa-cubes text-indigo-400"></i> Quick Presets
+                </h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btnPresetDipole" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition">Electric Dipole</button>
+                    <button id="btnPresetQuadrupole" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition">Quadrupole</button>
+                    <button id="btnPresetCapacitor" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition">Parallel Plates</button>
+                    <button id="btnPresetLine" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition">Charged Line</button>
+                </div>
+                <button id="btnClear" class="mt-1 w-full py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 text-rose-300 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-trash-can"></i> Clear All Charges
+                </button>
+            </div>
+
+        </aside>
+
+        <!-- Center: 2D Interactive Canvas -->
+        <section class="lg:col-span-6 flex flex-col gap-3">
+            <div id="canvasContainer" class="relative w-full aspect-square md:aspect-[4/3] glass-panel rounded-xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center">
+                <canvas id="simCanvas" class="w-full h-full cursor-crosshair"></canvas>
+                
+                <!-- Floating Info Overlay -->
+                <div class="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60 text-xs text-slate-300 flex items-center gap-3">
+                    <div>Protons: <span id="countProtons" class="font-bold text-rose-400">0</span></div>
+                    <div class="h-3 w-px bg-slate-700"></div>
+                    <div>Electrons: <span id="countElectrons" class="font-bold text-sky-400">0</span></div>
+                </div>
+
+                <div class="absolute bottom-3 right-3 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60 text-[11px] text-slate-400">
+                    <i class="fa-solid fa-mouse text-slate-500 mr-1"></i> Drag charges to move | Click to edit
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Sidebar: Live Measurements & Readouts -->
+        <aside class="lg:col-span-3 flex flex-col gap-4">
+            
+            <!-- Test Charge Probe Readout -->
+            <div class="glass-panel p-4 rounded-xl flex flex-col gap-3 border-l-4 border-l-amber-500">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-crosshairs text-amber-400"></i> Test Charge Probe
+                    </h2>
+                    <div class="flex items-center gap-1 text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">
+                        q = <input type="number" id="inQTest" value="1.0" step="0.5" class="bg-transparent w-12 text-right outline-none text-white font-mono border-b border-amber-500/50 focus:border-amber-300"> nC
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                        <div class="text-slate-400 text-[10px]">Probe Position</div>
+                        <div class="font-mono text-slate-200 mt-0.5" id="valProbePos">(0.00, 0.00) m</div>
+                    </div>
+                    <div class="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                        <div class="text-slate-400 text-[10px]">Electric Potential (V)</div>
+                        <div class="font-mono text-amber-300 font-semibold mt-0.5" id="valVoltage">0.00 V</div>
+                    </div>
+                </div>
+
+                <!-- Field Vector Readout -->
+                <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col gap-2">
+                    <div class="text-xs font-medium text-slate-300 flex justify-between">
+                        <span>Electric Field Vector (&Ecirc;)</span>
+                        <span id="valEMag" class="font-mono text-indigo-400 font-bold">0.00 N/C</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 font-mono text-[11px] text-slate-400">
+                        <div>E<sub>x</sub>: <span id="valEx" class="text-slate-200">0.00</span> N/C</div>
+                        <div>E<sub>y</sub>: <span id="valEy" class="text-slate-200">0.00</span> N/C</div>
+                    </div>
+                </div>
+
+                <!-- Force Readout -->
+                <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 flex flex-col gap-2">
+                    <div class="text-xs font-medium text-slate-300 flex justify-between">
+                        <span>Electrostatic Force (&Fcirc;)</span>
+                        <span id="valFMag" class="font-mono text-emerald-400 font-bold">0.00 &mu;N</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 font-mono text-[11px] text-slate-400">
+                        <div>F<sub>x</sub>: <span id="valFx" class="text-slate-200">0.00</span> &mu;N</div>
+                        <div>F<sub>y</sub>: <span id="valFy" class="text-slate-200">0.00</span> &mu;N</div>
+                    </div>
+                    <div class="text-[11px] text-slate-400 font-mono">
+                        Vector Angle (&theta;): <span id="valAngle" class="text-slate-200">0.0&deg;</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Saved Runs / Supabase List -->
+            <div class="glass-panel p-4 rounded-xl flex flex-col gap-3 flex-1 min-h-[220px]">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-floppy-disk text-emerald-400"></i> Saved Presets
+                    </h2>
+                    <button id="btnSaveRun" class="px-2.5 py-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded transition flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> Save Current
+                    </button>
+                </div>
+
+                <div id="runsList" class="flex flex-col gap-2 overflow-y-auto max-h-[260px] pr-1">
+                    <div class="text-xs text-slate-500 italic text-center py-6">No saved configurations found.</div>
+                </div>
+            </div>
+
+        </aside>
+
+    </main>
+
+    <!-- Formula Modal -->
+    <div id="modalFormulas" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-lg w-full rounded-xl p-6 border border-slate-700 flex flex-col gap-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-square-root-variable text-indigo-400"></i> Mathematical Physics Equations
+                </h3>
+                <button id="btnCloseFormulas" class="text-slate-400 hover:text-slate-100"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <div class="space-y-4 text-xs text-slate-300 leading-relaxed">
+                <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                    <div class="font-semibold text-indigo-300">1. Coulomb's Law & Electric Field Vector</div>
+                    <p class="mt-1">For $N$ point charges, the total field vector at position $\mathbf{r}$ is calculated via superposition:</p>
+                    <div class="font-mono text-center my-2 text-slate-100 bg-slate-950 p-2 rounded">
+                        E(r) = &sum; [ k &middot; q<sub>i</sub> / |r - r<sub>i</sub>|<sup>2</sup> ] &middot; û<sub>i</sub>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                    <div class="font-semibold text-emerald-300">2. Electrostatic Force on Test Charge</div>
+                    <p class="mt-1">The force exerted on a test charge $q_{test}$ at the probe position:</p>
+                    <div class="font-mono text-center my-2 text-slate-100 bg-slate-950 p-2 rounded">
+                        F = q<sub>test</sub> &middot; E
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                    <div class="font-semibold text-amber-300">3. Electric Potential (Voltage)</div>
+                    <p class="mt-1">Electric potential $V$ is a scalar sum of all charge contributions:</p>
+                    <div class="font-mono text-center my-2 text-slate-100 bg-slate-950 p-2 rounded">
+                        V(r) = &sum; [ k &middot; q<sub>i</sub> / |r - r<sub>i</sub>| ]
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Database Setup Modal -->
+    <div id="modalDb" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-md w-full rounded-xl p-6 border border-slate-700 flex flex-col gap-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-database text-emerald-400"></i> Supabase Cloud Config
+                </h3>
+                <button id="btnCloseDb" class="text-slate-400 hover:text-slate-100"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <p class="text-xs text-slate-400">Enter your Supabase credentials to save and load simulation presets across devices. Leave empty to use local storage.</p>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Supabase URL</label>
+                    <input type="text" id="cfgSupaUrl" placeholder="https://your-project.supabase.co" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Anon Key</label>
+                    <input type="password" id="cfgSupaKey" placeholder="eyJhbGciOi..." class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+
+            <button id="btnSaveDbConfig" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium text-xs transition">
+                Save Database Credentials
+            </button>
+        </div>
+    </div>
+
+    <!-- JS Application Logic -->
+    <script>
+        // Physical Constants (Normalized for interactive canvas canvas space)
+        const K_COULOMB = 8.98755e9; // N m^2 / C^2
+        const ELEMENTARY_CHARGE = 1.602e-19; // Coulombs
+        const Q_SCALE = 1e-9; // Nano-Coulombs per point unit charge in app
+        
+        let testChargeQ = 1.0; // Dynamic nC test probe variable
+        let placeChargeMag = 1; // Dynamic multiplier for placed charges
+
+        // Canvas & Physics State
+        let canvas, ctx;
+        let charges = [];
+        let probe = { x: 0, y: 0 }; // Canvas centered world space coordinates (meters)
+        let activeTool = 'proton'; // 'proton', 'electron', 'probe', 'select'
+        let draggedChargeIdx = -1;
+        let isDraggingProbe = false;
+
+        // Settings Toggles
+        const settings = {
+            showGrid: true,
+            showFieldGrid: true,
+            showVoltageMap: true,
+            showProbeForce: true,
+            gridSpacing: 24 // pixels
+        };
+
+        // Supabase Client
+        let supabaseClient = null;
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            canvas = document.getElementById('simCanvas');
+            ctx = canvas.getContext('2d');
+            
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            initEventListeners();
+            initSupabaseFromStorage();
+            loadPreset('dipole');
+            
+            requestAnimationFrame(renderLoop);
+        });
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvasContainer');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        // Coordinate Transforms: World (0,0 centered) <-> Canvas Pixel Space
+        function worldToCanvas(wx, wy) {
+            const scale = canvas.width / 10; // 10 meters view window
+            return {
+                x: canvas.width / 2 + wx * scale,
+                y: canvas.height / 2 - wy * scale
+            };
+        }
+
+        function canvasToWorld(cx, cy) {
+            const scale = canvas.width / 10;
+            return {
+                x: (cx - canvas.width / 2) / scale,
+                y: -(cy - canvas.height / 2) / scale
+            };
+        }
+
+        // Physics Calculations
+        function computeFieldAndPotentialAt(wx, wy) {
+            let Ex = 0, Ey = 0, V = 0;
+
+            for (const q of charges) {
+                const dx = wx - q.x;
+                const dy = wy - q.y;
+                const r2 = dx * dx + dy * dy;
+                const r = Math.sqrt(r2);
+
+                if (r < 0.05) continue; // Singularity cutoff distance
+
+                const chargeC = q.type * Q_SCALE;
+                const E_mag = (K_COULOMB * chargeC) / r2;
+
+                Ex += E_mag * (dx / r);
+                Ey += E_mag * (dy / r);
+                V += (K_COULOMB * chargeC) / r;
+            }
+
+            return { Ex, Ey, EMag: Math.sqrt(Ex * Ex + Ey * Ey), V };
+        }
+
+        // Main Render Loop
+        function renderLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (settings.showVoltageMap) drawVoltageHeatmap();
+            if (settings.showGrid) drawCoordinateGrid();
+            if (settings.showFieldGrid) drawVectorFieldGrid();
+
+            drawCharges();
+            drawTestProbe();
+
+            updateReadouts();
+            requestAnimationFrame(renderLoop);
+        }
+
+        // Render Background Potential Heatmap
+        function drawVoltageHeatmap() {
+            const step = 12; // pixel block sampling step
+            for (let x = 0; x < canvas.width; x += step) {
+                for (let y = 0; y < canvas.height; y += step) {
+                    const world = canvasToWorld(x + step / 2, y + step / 2);
+                    const { V } = computeFieldAndPotentialAt(world.x, world.y);
+
+                    // Map voltage to Red (+) / Blue (-) gradient
+                    const normV = Math.tanh(V / 150); // Increased sensitivity for stronger colors
+                    let r = 0, b = 0, a = Math.abs(normV) * 0.7; // Increased opacity
+
+                    if (normV > 0) r = 244;
+                    else b = 246;
+
+                    ctx.fillStyle = `rgba(${r}, 30, ${b}, ${a})`;
+                    ctx.fillRect(x, y, step, step);
+                }
+            }
+        }
+
+        // Render Coordinate Gridlines
+        function drawCoordinateGrid() {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+            ctx.lineWidth = 1;
+
+            const center = worldToCanvas(0, 0);
+
+            // Grid lines
+            const step = canvas.width / 10;
+            for (let x = center.x % step; x < canvas.width; x += step) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let y = center.y % step; y < canvas.height; y += step) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            // Central Axes
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.beginPath(); ctx.moveTo(center.x, 0); ctx.lineTo(center.x, canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, center.y); ctx.lineTo(canvas.width, center.y); ctx.stroke();
+        }
+
+        // Render Field Vector Grid
+        function drawVectorFieldGrid() {
+            const density = settings.gridSpacing;
+            for (let x = density / 2; x < canvas.width; x += density) {
+                for (let y = density / 2; y < canvas.height; y += density) {
+                    const world = canvasToWorld(x, y);
+                    const { Ex, Ey, EMag } = computeFieldAndPotentialAt(world.x, world.y);
+
+                    if (EMag < 1) continue;
+
+                    const len = Math.min(density * 0.45, Math.log10(EMag + 1) * 4);
+                    const angle = Math.atan2(-Ey, Ex);
+
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(angle);
+
+                    ctx.strokeStyle = `hsla(${240 - Math.min(EMag / 20, 240)}, 80%, 60%, 0.6)`;
+                    ctx.lineWidth = 1.2;
+
+                    ctx.beginPath();
+                    ctx.moveTo(-len / 2, 0);
+                    ctx.lineTo(len / 2, 0);
+                    ctx.lineTo(len / 2 - 3, -3);
+                    ctx.moveTo(len / 2, 0);
+                    ctx.lineTo(len / 2 - 3, 3);
+                    ctx.stroke();
+
+                    ctx.restore();
+                }
+            }
+        }
+
+        // Render Charges
+        function drawCharges() {
+            charges.forEach((q, idx) => {
+                const pos = worldToCanvas(q.x, q.y);
+                const isPositive = q.type > 0;
+
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 14, 0, Math.PI * 2);
+                ctx.fillStyle = isPositive ? '#f43f5e' : '#38bdf8';
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Draw Symbol
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText((isPositive ? '+' : '') + q.type, pos.x, pos.y);
+            });
+        }
+
+        // Render Test Probe
+        function drawTestProbe() {
+            const pos = worldToCanvas(probe.x, probe.y);
+
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#f59e0b';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Crosshair
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(pos.x - 14, pos.y); ctx.lineTo(pos.x + 14, pos.y);
+            ctx.moveTo(pos.x, pos.y - 14); ctx.lineTo(pos.x, pos.y + 14);
+            ctx.stroke();
+
+            // Force Vector Arrow
+            if (settings.showProbeForce) {
+                const { Ex, Ey } = computeFieldAndPotentialAt(probe.x, probe.y);
+                const actualQ = testChargeQ * 1e-9;
+                const Fx = actualQ * Ex;
+                const Fy = actualQ * Ey;
+                const FMag = Math.sqrt(Fx * Fx + Fy * Fy);
+
+                if (FMag > 1e-12 && actualQ !== 0) {
+                    const angle = Math.atan2(-Fy, Fx);
+                    const arrowLen = Math.min(80, Math.log10(FMag * 1e9 + 1) * 20 + 10);
+
+                    ctx.save();
+                    ctx.translate(pos.x, pos.y);
+                    ctx.rotate(angle);
+
+                    ctx.strokeStyle = '#10b981';
+                    ctx.fillStyle = '#10b981';
+                    ctx.lineWidth = 2.5;
+
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(arrowLen, 0);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(arrowLen, 0);
+                    ctx.lineTo(arrowLen - 8, -5);
+                    ctx.lineTo(arrowLen - 8, 5);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    ctx.restore();
+                }
+            }
+        }
+
+        // Update Text Readouts
+        function updateReadouts() {
+            document.getElementById('countProtons').innerText = charges.filter(c => c.type > 0).length;
+            document.getElementById('countElectrons').innerText = charges.filter(c => c.type < 0).length;
+
+            const { Ex, Ey, EMag, V } = computeFieldAndPotentialAt(probe.x, probe.y);
+            const actualQ = testChargeQ * 1e-9;
+            const Fx = actualQ * Ex;
+            const Fy = actualQ * Ey;
+            const FMag = Math.sqrt(Fx * Fx + Fy * Fy);
+            const angle = (Math.atan2(Ey, Ex) * (180 / Math.PI) + 360) % 360;
+
+            document.getElementById('valProbePos').innerText = `(${probe.x.toFixed(2)}, ${probe.y.toFixed(2)}) m`;
+            document.getElementById('valVoltage').innerText = `${V.toFixed(2)} V`;
+            document.getElementById('valEMag').innerText = `${EMag.toFixed(2)} N/C`;
+            document.getElementById('valEx').innerText = Ex.toFixed(2);
+            document.getElementById('valEy').innerText = Ey.toFixed(2);
+
+            document.getElementById('valFMag').innerText = `${(FMag * 1e6).toFixed(2)} µN`;
+            document.getElementById('valFx').innerText = (Fx * 1e6).toFixed(2);
+            document.getElementById('valFy').innerText = (Fy * 1e6).toFixed(2);
+            document.getElementById('valAngle').innerText = `${angle.toFixed(1)}°`;
+        }
+
+        // Interactive Handlers
+        function initEventListeners() {
+            // Palette Tools
+            const setTool = (tool, btnId) => {
+                activeTool = tool;
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active', 'border-rose-500/40', 'border-sky-500/30', 'border-amber-500/30'));
+                document.getElementById(btnId).classList.add('active');
+            };
+
+            document.getElementById('modeProton').onclick = () => setTool('proton', 'modeProton');
+            document.getElementById('modeElectron').onclick = () => setTool('electron', 'modeElectron');
+            document.getElementById('modeProbe').onclick = () => setTool('probe', 'modeProbe');
+            document.getElementById('modeSelect').onclick = () => setTool('select', 'modeSelect');
+
+            // Read the input boxes
+            if(document.getElementById('inQTest')) {
+                document.getElementById('inQTest').oninput = (e) => testChargeQ = parseFloat(e.target.value) || 0;
+            }
+            if(document.getElementById('inChargeMag')) {
+                document.getElementById('inChargeMag').oninput = (e) => placeChargeMag = Math.max(1, parseInt(e.target.value) || 1);
+            }
+
+            // Canvas Pointer Events
+            canvas.addEventListener('pointerdown', handlePointerDown);
+            canvas.addEventListener('pointermove', handlePointerMove);
+            window.addEventListener('pointerup', () => {
+                draggedChargeIdx = -1;
+                isDraggingProbe = false;
+            });
+
+            // Toggles
+            document.getElementById('chkGrid').onchange = (e) => settings.showGrid = e.target.checked;
+            document.getElementById('chkFieldGrid').onchange = (e) => settings.showFieldGrid = e.target.checked;
+            document.getElementById('chkVoltageMap').onchange = (e) => settings.showVoltageMap = e.target.checked;
+            document.getElementById('chkProbeForce').onchange = (e) => settings.showProbeForce = e.target.checked;
+            document.getElementById('rngGridDensity').oninput = (e) => {
+                settings.gridSpacing = parseInt(e.target.value);
+                document.getElementById('lblGridDensity').innerText = `${settings.gridSpacing}px`;
+            };
+
+            // Presets
+            document.getElementById('btnPresetDipole').onclick = () => loadPreset('dipole');
+            document.getElementById('btnPresetQuadrupole').onclick = () => loadPreset('quadrupole');
+            document.getElementById('btnPresetCapacitor').onclick = () => loadPreset('capacitor');
+            document.getElementById('btnPresetLine').onclick = () => loadPreset('line');
+            document.getElementById('btnClear').onclick = () => { charges = []; };
+
+            // Modals
+            document.getElementById('btnFormulaModal').onclick = () => document.getElementById('modalFormulas').classList.remove('hidden');
+            document.getElementById('btnCloseFormulas').onclick = () => document.getElementById('modalFormulas').classList.add('hidden');
+            
+            document.getElementById('btnDbModal').onclick = () => document.getElementById('modalDb').classList.remove('hidden');
+            document.getElementById('btnCloseDb').onclick = () => document.getElementById('modalDb').classList.add('hidden');
+            document.getElementById('btnSaveDbConfig').onclick = saveDatabaseCredentials;
+
+            document.getElementById('btnSaveRun').onclick = saveCurrentRun;
+        }
+
+        function handlePointerDown(e) {
+            const rect = canvas.getBoundingClientRect();
+            const cx = e.clientX - rect.left;
+            const cy = e.clientY - rect.top;
+            const world = canvasToWorld(cx, cy);
+
+            if (activeTool === 'proton') {
+                charges.push({ x: world.x, y: world.y, type: placeChargeMag });
+            } else if (activeTool === 'electron') {
+                charges.push({ x: world.x, y: world.y, type: -placeChargeMag });
+            } else if (activeTool === 'probe') {
+                probe.x = world.x;
+                probe.y = world.y;
+                isDraggingProbe = true;
+            } else if (activeTool === 'select') {
+                // Check if probe hit
+                const probePos = worldToCanvas(probe.x, probe.y);
+                if (Math.hypot(cx - probePos.x, cy - probePos.y) < 16) {
+                    isDraggingProbe = true;
+                    return;
+                }
+                // Check charge hit
+                for (let i = charges.length - 1; i >= 0; i--) {
+                    const cPos = worldToCanvas(charges[i].x, charges[i].y);
+                    if (Math.hypot(cx - cPos.x, cy - cPos.y) < 18) {
+                        draggedChargeIdx = i;
+                        break;
+                    }
+                }
+            }
+        }
+
+        function handlePointerMove(e) {
+            if (draggedChargeIdx < 0 && !isDraggingProbe) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const world = canvasToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+            if (isDraggingProbe) {
+                probe.x = world.x;
+                probe.y = world.y;
+            } else if (draggedChargeIdx >= 0) {
+                charges[draggedChargeIdx].x = world.x;
+                charges[draggedChargeIdx].y = world.y;
+            }
+        }
+
+        // Preset Configurations
+        function loadPreset(type) {
+            charges = [];
+            probe = { x: 0, y: 0 }; // Snap probe directly to the center
+
+            if (type === 'dipole') {
+                charges.push({ x: -2, y: 0, type: 1 });
+                charges.push({ x: 2, y: 0, type: -1 });
+            } else if (type === 'quadrupole') {
+                charges.push({ x: -1.5, y: 1.5, type: 1 });
+                charges.push({ x: 1.5, y: 1.5, type: -1 });
+                charges.push({ x: -1.5, y: -1.5, type: -1 });
+                charges.push({ x: 1.5, y: -1.5, type: 1 });
+            } else if (type === 'capacitor') {
+                for (let y = -2.5; y <= 2.5; y += 1.0) {
+                    charges.push({ x: -2, y, type: 1 });
+                    charges.push({ x: 2, y, type: -1 });
+                }
+            } else if (type === 'line') {
+                probe = { x: 0, y: 1.5 }; // Offset probe slightly so it isn't hidden inside the line
+                for (let x = -3; x <= 3; x += 1.0) {
+                    charges.push({ x, y: 0, type: 1 });
+                }
+            }
+        }
+
+        // Local Storage & Supabase Persistence
+        function saveCurrentRun() {
+            const runData = {
+                id: Date.now(),
+                name: `Preset ${new Date().toLocaleTimeString()}`,
+                charges: [...charges],
+                probe: { ...probe }
+            };
+
+            let runs = JSON.parse(localStorage.getItem('efield_saved_runs') || '[]');
+            runs.unshift(runData);
+            localStorage.setItem('efield_saved_runs', JSON.stringify(runs));
+
+            if (supabaseClient) {
+                supabaseClient.from('electric_field_configs').insert([runData]).then(() => {});
+            }
+
+            renderRunsList();
+        }
+
+        function renderRunsList() {
+            const listEl = document.getElementById('runsList');
+            let runs = JSON.parse(localStorage.getItem('efield_saved_runs') || '[]');
+
+            if (runs.length === 0) {
+                listEl.innerHTML = `<div class="text-xs text-slate-500 italic text-center py-6">No saved configurations found.</div>`;
+                return;
+            }
+
+            listEl.innerHTML = runs.map(r => `
+                <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                    <div>
+                        <div class="font-medium text-slate-200">${r.name}</div>
+                        <div class="text-[10px] text-slate-400">${r.charges.length} charges</div>
+                    </div>
+                    <button onclick="loadSavedRun(${r.id})" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded border border-slate-700">Load</button>
+                </div>
+            `).join('');
+        }
+
+        window.loadSavedRun = function(id) {
+            let runs = JSON.parse(localStorage.getItem('efield_saved_runs') || '[]');
+            const found = runs.find(r => r.id === id);
+            if (found) {
+                charges = [...found.charges];
+                probe = { ...found.probe };
+            }
+        };
+
+        function saveDatabaseCredentials() {
+            const url = document.getElementById('cfgSupaUrl').value.trim();
+            const key = document.getElementById('cfgSupaKey').value.trim();
+
+            localStorage.setItem('supa_url', url);
+            localStorage.setItem('supa_key', key);
+
+            initSupabaseFromStorage();
+            document.getElementById('modalDb').classList.add('hidden');
+        }
+
+        function initSupabaseFromStorage() {
+            const url = localStorage.getItem('supa_url');
+            const key = localStorage.getItem('supa_key');
+
+            if (url && key && window.supabase) {
+                supabaseClient = window.supabase.createClient(url, key);
+            }
+            renderRunsList();
+        }
+    </script>
+</body>
+</html>
