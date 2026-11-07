@@ -78,14 +78,8 @@
                     </button>
                 </div>
                 <div class="mt-2 flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
-                    <span>Charge Multiplier</span>
-                    <select id="selChargeMag" class="bg-slate-900 border border-slate-700 rounded p-1 text-slate-200 focus:outline-none">
-                        <option value="1">1x</option>
-                        <option value="2">2x</option>
-                        <option value="3">3x</option>
-                        <option value="4">4x</option>
-                        <option value="5">5x</option>
-                    </select>
+                    <span>Charge Value (nC)</span>
+                    <input type="number" id="inChargeMag" value="1" step="0.5" class="w-16 bg-slate-900 border border-slate-700 rounded p-1 text-slate-200 focus:outline-none text-center">
                 </div>
             </div>
 
@@ -154,9 +148,9 @@
                 
                 <!-- Floating Info Overlay -->
                 <div class="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60 text-xs text-slate-300 flex items-center gap-3">
-                    <div>Protons: <span id="countProtons" class="font-bold text-rose-400">0</span></div>
+                    <div>Protons (+): <span id="countProtons" class="font-bold text-rose-400">0</span></div>
                     <div class="h-3 w-px bg-slate-700"></div>
-                    <div>Electrons: <span id="countElectrons" class="font-bold text-sky-400">0</span></div>
+                    <div>Electrons (-): <span id="countElectrons" class="font-bold text-sky-400">0</span></div>
                 </div>
 
                 <div class="absolute bottom-3 right-3 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60 text-[11px] text-slate-400">
@@ -402,7 +396,6 @@
 
             updateReadouts();
             
-            // Sync inspector sliders if dragging with mouse
             if (isDraggingProbe || draggedChargeIdx !== -1) {
                 syncInspectorSliders();
             }
@@ -489,7 +482,7 @@
         function drawCharges() {
             charges.forEach((q, idx) => {
                 const pos = worldToCanvas(q.x, q.y);
-                const isPositive = q.type > 0;
+                const isPositive = (q.type * q.mag) >= 0;
 
                 // Selection Highlight Ring
                 if (selectedTarget === idx) {
@@ -503,7 +496,7 @@
                 }
 
                 ctx.beginPath();
-                ctx.arc(pos.x, pos.y, 14 + (q.mag * 1.5), 0, Math.PI * 2);
+                ctx.arc(pos.x, pos.y, 14 + (Math.abs(q.mag) * 1.5), 0, Math.PI * 2);
                 ctx.fillStyle = isPositive ? '#f43f5e' : '#38bdf8';
                 ctx.fill();
                 ctx.strokeStyle = '#ffffff';
@@ -514,8 +507,8 @@
                 ctx.font = 'bold 12px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                const sign = isPositive ? '+' : '−';
-                ctx.fillText(`${sign}${q.mag}`, pos.x, pos.y);
+                const sign = isPositive ? '+' : '';
+                ctx.fillText(`${sign}${q.type * q.mag}`, pos.x, pos.y);
             });
         }
 
@@ -583,8 +576,8 @@
         }
 
         function updateReadouts() {
-            document.getElementById('countProtons').innerText = charges.filter(c => c.type > 0).length;
-            document.getElementById('countElectrons').innerText = charges.filter(c => c.type < 0).length;
+            document.getElementById('countProtons').innerText = charges.filter(c => (c.type * c.mag) > 0).length;
+            document.getElementById('countElectrons').innerText = charges.filter(c => (c.type * c.mag) < 0).length;
 
             const { Ex, Ey, EMag, V } = computeFieldAndPotentialAt(probe.x, probe.y);
             const Fx = (qTestValue * 1e-9) * Ex;
@@ -605,7 +598,10 @@
             
             sel.innerHTML = `<option value="probe">Test Probe</option>`;
             charges.forEach((c, i) => {
-                const label = c.type > 0 ? `Charge ${i+1} (Proton +${c.mag})` : `Charge ${i+1} (Electron -${c.mag})`;
+                const val = c.type * c.mag;
+                const name = val > 0 ? 'Proton' : 'Electron';
+                const sign = val > 0 ? '+' : '';
+                const label = `Charge ${i+1} (${name} ${sign}${val})`;
                 sel.innerHTML += `<option value="${i}">${label}</option>`;
             });
 
@@ -660,13 +656,15 @@
                 const cx = e.clientX - rect.left;
                 const cy = e.clientY - rect.top;
                 const world = canvasToWorld(cx, cy);
-                const mag = parseInt(document.getElementById('selChargeMag').value) || 1;
+                const inputVal = parseFloat(document.getElementById('inChargeMag').value) || 1;
 
                 if (activeTool === 'proton') {
-                    charges.push({ x: world.x, y: world.y, type: 1, mag: mag });
+                    const finalCharge = inputVal;
+                    charges.push({ x: world.x, y: world.y, type: finalCharge >= 0 ? 1 : -1, mag: Math.abs(finalCharge) });
                     updateInspectorUI();
                 } else if (activeTool === 'electron') {
-                    charges.push({ x: world.x, y: world.y, type: -1, mag: mag });
+                    const finalCharge = -inputVal; 
+                    charges.push({ x: world.x, y: world.y, type: finalCharge >= 0 ? 1 : -1, mag: Math.abs(finalCharge) });
                     updateInspectorUI();
                 } else if (activeTool === 'probe') {
                     probe.x = world.x;
